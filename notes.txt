@@ -93,6 +93,33 @@ $ git push heroku master
 这样backend其实被两个git来管理
 
 -----------------------------------------------------------------------------------------
+前端环境搭建
+-----------------------------------------------------------------------------------------
+node --version
+npm --version
+
+npx create-react-app frontend
+npm install react-router-dom@6
+
+npm i -D tailwindcss
+npm i -D postcss
+npm i -D autoprefixer
+npx tailwindcss init -p
+Open tailwind.config.js and specify the path to the React components as follows:
+module.exports = {
+ content: [
+ './src/**/*.{js,jsx,ts,tsx}'
+ ],
+ theme: {
+ extend: {},
+ },
+ plugins: [],
+}
+Now, open index.css in the src folder and add the following three lines at the top of the file:
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+-----------------------------------------------------------------------------------------
 python知识
 -----------------------------------------------------------------------------------------
 
