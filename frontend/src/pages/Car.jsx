@@ -1,6 +1,10 @@
+import Layout from "../components/Layout"
+
 const Car = () => {
   return (
-    <div>Car</div>
+    <Layout>
+      <div>Car</div>
+    </Layout>
   )
 }
 export default Car
