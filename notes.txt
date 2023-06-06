@@ -1,0 +1,50 @@
+在项目的目录下执行, 安装venv
+python -m venv venv
+在项目目录下, 启动虚拟环境
+.\venv\Scripts\activate
+退出虚拟环境
+deactivate
+
+安装服务器和web框架,数据库驱动等
+pip install fastapi motor dnspython pydantic uvicorn
+
+pip install httpie
+http GET "https://jsonplaceholder.typicode.com/todos/1"
+http POST "http://localhost:8000/cars/" brand="aaa" make="500" year=2015 cm3=1222 price=2000 km=100000
+
+进入backend目录下, 对main.py启动web服务
+uvicorn main:app --reload
+访问http://localhost:8000/
+
+一个管理环境变量的工具
+pip install python-decouple
+
+________________________________________________________________________________________
+
+在 Python 中，前面的两个星号 ** 是一个特殊的操作符，它被称为 "字典解包"（dictionary unpacking）操作符。
+
+当你在调用一个函数或者创建一个类的实例时，如果你有一个字典，而这个字典的键恰好对应了函数的参数名或者类的属性名，你可以使用 ** 操作符将这个字典解包，并将它的键值对作为参数传递给函数或者类。
+
+例如，假设你有如下的类和字典：
+
+python
+Copy code
+class Car:
+    def __init__(self, brand, model):
+        self.brand = brand
+        self.model = model
+
+car_info = {"brand": "Tesla", "model": "Model 3"}
+你可以使用 ** 操作符将 car_info 字典解包，并创建一个 Car 实例：
+
+python
+Copy code
+car = Car(**car_info)
+这等价于以下的代码：
+
+python
+Copy code
+car = Car(brand="Tesla", model="Model 3")
+在你给出的代码 return CarDB(**car) 中，**car 将 car 字典解包，并将其键值对作为参数，创建了一个 CarDB 对象。
+
+f是Python中的格式化字符串的前缀，它允许在字符串中插入变量或表达式的值。在这种情况下，f"Car with {id} not found"将在字符串中插入id变量的值
