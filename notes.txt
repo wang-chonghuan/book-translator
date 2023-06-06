@@ -1,3 +1,7 @@
+-----------------------------------------------------------------------------------------
+开发环境配置
+-----------------------------------------------------------------------------------------
+
 在项目的目录下执行, 安装venv
 python -m venv venv
 在项目目录下, 启动虚拟环境
@@ -6,11 +10,12 @@ python -m venv venv
 deactivate
 
 安装服务器和web框架,数据库驱动等
-pip install fastapi motor dnspython pydantic uvicorn
+pip install fastapi motor dnspython pydantic uvicorn python-decouple httpie
 
-pip install httpie
 http GET "https://jsonplaceholder.typicode.com/todos/1"
 http POST "http://localhost:8000/cars/" brand="aaa" make="500" year=2015 cm3=1222 price=2000 km=100000
+
+http POST "https://secret-river-09896.herokuapp.com/cars/" brand="aac" make="500" year=2015 cm3=1222 price=2000 km=100000
 
 进入backend目录下, 对main.py启动web服务
 uvicorn main:app --reload
@@ -19,7 +24,77 @@ uvicorn main:app --reload
 一个管理环境变量的工具
 pip install python-decouple
 
-________________________________________________________________________________________
+-----------------------------------------------------------------------------------------
+heroku部署
+-----------------------------------------------------------------------------------------
+首先注册一个heroku账号
+然后安装cli
+https://devcenter.heroku.com/articles/heroku-cli
+重启命令行,输入
+heroku login
+进入网页确认登录
+
+新建一个空目录backend
+把要部署的代码全部复制到该目录下
+
+新建一个文件Procfile,一定要大写,否则要删掉提交,再改成大写再提交,其内容是
+web: uvicorn main:app --host 0.0.0.0 --port=$PORT
+
+新建一个requirements.txt内容是所有的依赖
+dnspython
+fastapi
+motor
+PythonDNS
+uvicorn
+python-decouple
+
+新建heroku的项目
+heroku create
+返回值是该项目的域名和git名
+Creating app... done, ⬢ secret-river-09896
+https://secret-river-09896.herokuapp.com/ | https://git.heroku.com/secret-river-09896.git
+
+添加环境变量
+heroku config:set DB_URL="mongodb+srv://waltwang:<PASSWORD>@cluster0.rgwkinx.mongodb.net/?retryWrites=true&w=majority"
+heroku config:set DB_NAME="carsApp"
+heroku config:set COLLECTION_NAME="cars1"
+
+创建heroku git并且推送
+git add .
+git commit -am "for deploy"
+git push heroku master
+
+推送时自动部署,注意看这几行日志
+remote: -----> Installing requirements with pip
+remote: -----> Discovering process types
+remote:        Procfile declares types -> web
+
+httpie测试接口
+http POST "https://secret-river-09896.herokuapp.com/cars/" brand="aac" make="500" year=2015 cm3=1222 price=2000 km=100000
+
+查看日志
+heroku logs
+
+成功
+
+Clone the repository
+Use Git to clone secret-river-09896's source code to your local machine.
+$ heroku git:clone -a secret-river-09896 
+$ cd secret-river-09896
+
+Deploy your changes
+Make some changes to the code you just cloned and deploy them to Heroku using Git.
+$ git add .
+$ git commit -am "make it better"
+$ git push heroku master
+
+全栈的整个目录用github
+全栈目录下的backend目录里,用heroku git
+这样backend其实被两个git来管理
+
+-----------------------------------------------------------------------------------------
+python知识
+-----------------------------------------------------------------------------------------
 
 在 Python 中，前面的两个星号 ** 是一个特殊的操作符，它被称为 "字典解包"（dictionary unpacking）操作符。
 
@@ -48,3 +123,25 @@ car = Car(brand="Tesla", model="Model 3")
 在你给出的代码 return CarDB(**car) 中，**car 将 car 字典解包，并将其键值对作为参数，创建了一个 CarDB 对象。
 
 f是Python中的格式化字符串的前缀，它允许在字符串中插入变量或表达式的值。在这种情况下，f"Car with {id} not found"将在字符串中插入id变量的值
+
+让我们详细解释一下分页逻辑在前端和后端中的应用。首先，让我们理解分页是什么：当你有大量的数据需要展示给用户时，你并不希望一次性展示所有数据，因为这会对性能产生很大的影响，并可能导致用户体验变差。此时，你可以使用分页技术，将数据分成多个部分或“页”，每页显示固定数量的数据。
+
+前端：
+在前端，用户通常会看到一些界面元素来控制分页，如“上一页”、“下一页”按钮，或者具体的页码按钮。用户通过点击这些按钮来浏览数据。当用户点击这些按钮时，前端应用会向后端发送一个请求，请求中包含需要获取数据的页码（有时还包含每页的数量）。
+
+例如，如果用户想看第2页的数据，前端可能会向后端发送一个类似于 /cars?page=2 的GET请求。
+
+后端：
+后端收到请求后，会解析请求中的页码，以及可能存在的每页数量。然后，后端使用这些信息来从数据库中查询相应的数据。后端首先计算需要跳过的数据条数，这通常是 (页码 - 1) * 每页数量。然后，后端查询数据库，跳过前面计算出的数据条数，然后获取接下来的“每页数量”条数据。最后，后端将这些数据打包到响应中，返回给前端。
+
+以代码为例：
+
+python
+Copy code
+RESULTS_PER_PAGE = 25  # 每页显示的结果数量
+page = 2  # 假设这是从请求中获取的页码
+skip = (page - 1) * RESULTS_PER_PAGE  # 计算需要跳过的数据条数
+
+# 查询数据库，获取第2页的数据
+data = collection.find().skip(skip).limit(RESULTS_PER_PAGE)
+这就是分页逻辑在前后端的应用。希望这个解释对你有所帮助！
