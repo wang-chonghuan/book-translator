@@ -3,9 +3,6 @@ import Layout from "../components/Layout"
 import Card from "../components/Card"
 import Loading from "../components/Loading";
 
-let BASE_URL = "https://secret-river-09896.herokuapp.com/cars"
-//let BASE_URL = "http://localhost:8000/cars"
-
 const Cars = () => {
 
   const [cars, setCars] = useState([])
@@ -26,7 +23,7 @@ const Cars = () => {
   }
 
   useEffect(() => {
-    fetch(`${BASE_URL}?brand=${brand}&page=${page}`)
+    fetch(`${process.env.REACT_APP_SERVER_URL}?brand=${brand}&page=${page}`)
       .then(response => response.json())
       .then(json => {
         setCars(json)
@@ -60,7 +57,7 @@ const Cars = () => {
       <div className="mx-8">
         {isPending && <Loading brand={brand}/>}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {cars && cars.map((el) => <Card key={el._id} car={el}/>)}
+          {cars && cars.map(el => <Card key={el._id} car={el}/>)}
         </div>
       </div>
     </Layout>

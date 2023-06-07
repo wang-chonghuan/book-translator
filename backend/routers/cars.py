@@ -1,5 +1,6 @@
 # APIRouter 是用来创建 API 路由的类；Request 是代表 HTTP 请求的类；Body 是一个函数，用来标识一个请求体参数；status 是一个包含 HTTP 状态码常量的模块。
 from typing import List, Optional
+from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Request, Body, status
 
 # jsonable_encoder 函数，这个函数可以将 Python 对象转换为可以序列化为 JSON 的字典或者列表。
@@ -70,7 +71,7 @@ async def create_car(request: Request, car: CarBase = Body(...)):
 @router.get("/{id}", response_description="Get a single car")
 async def show_car(id: str, request: Request):
     # 这行代码在 MongoDB 数据库的 "cars1" 集合中查询 _id 等于指定 ID 的文档。:= 是 Python 的 "海象运算符"（walrus operator），它在条件判断的同时赋值。如果找到了匹配的文档，car 变量将被赋值为该文档，然后检查 car 是否不为 None。
-    if (car := await request.app.mongodb["cars1"].find_one({"_id": id})) is not None:
+    if (car := await request.app.mongodb["cars1"].find_one({"_id": ObjectId(id)})) is not None:
         # 将 car 字典的键值对作为参数，创建一个 CarDB 对象，并返回该对象。在 FastAPI 中，返回的模型对象将被自动转换为 JSON 格式。 ** 是一个特殊的操作符，它被称为 "字典解包"（dictionary unpacking）操作符。
         return CarDB(**car)
     raise HTTPException(status_code=404, detail=f"Car with {id} not found")
