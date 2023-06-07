@@ -42,8 +42,8 @@ class MongoBaseModel(BaseModel):
 
 #这个类继承了 MongoBaseModel，它描述了车辆的基础数据模型，包括品牌、制造商、年份、价格、公里数和立方厘米数。
 class CarBase(MongoBaseModel):
-    brand: str = Field(..., min_length=3)
-    make: str = Field(..., min_length=3)
+    brand: str = Field(..., min_length=1)
+    make: str = Field(..., min_length=1)
     year: int = Field(..., gt=1975, lt=2023)
     price: int = Field(...)
     km: int = Field(...)

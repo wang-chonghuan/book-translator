@@ -72,14 +72,23 @@ remote:        Procfile declares types -> web
 httpie测试接口
 http POST "https://secret-river-09896.herokuapp.com/cars/" brand="aac" make="500" year=2015 cm3=1222 price=2000 km=100000
 
+还需要在mongodb atlas的security-network access里配置一条可以访问数据库的IP
+0.0.0.0/0 也就是任何网络地址都可以访问该数据库,否则会被ban,报连接超时错误无法连接
+网络限制：某些云数据库服务会限制哪些IP地址可以访问数据库。你的数据库可能配置为只允许你的本地IP地址访问。你需要检查数据库的网络访问规则，如果有IP白名单的限制，尝试将Heroku的IP地址或IP地址范围添加到白名单。
+
 查看日志
 heroku logs
+heroku logs -a my-app
+如果目录下已经有了heroku git目录,就不用指定my-app了
+如果你在项目目录下已经通过heroku git:remote -a my-app命令将Heroku应用关联到了当前的git仓库，
+那么你可以直接运行heroku logs，不需要加-a参数。如果没有关联，就需要按照上面的方式指定应用名称。
+heroku logs --tail --app secret-river-09896
 
 成功
 
 Clone the repository
 Use Git to clone secret-river-09896's source code to your local machine.
-$ heroku git:clone -a secret-river-09896 
+$ heroku git:clone -a secret-river-09896
 $ cd secret-river-09896
 
 Deploy your changes
@@ -172,3 +181,11 @@ skip = (page - 1) * RESULTS_PER_PAGE  # 计算需要跳过的数据条数
 # 查询数据库，获取第2页的数据
 data = collection.find().skip(skip).limit(RESULTS_PER_PAGE)
 这就是分页逻辑在前后端的应用。希望这个解释对你有所帮助！
+
+-----------------------------------------------------------------------------------------
+js知识
+-----------------------------------------------------------------------------------------
+
+const Card = ({ car }) => {}
+
+至于你提到的({ car })，这是JavaScript中的解构语法。这种语法允许我们直接从对象或数组中提取属性或元素赋值给变量。在这个例子中，({ car })表示从传入的参数对象中提取car属性，并将其作为一个名为car的变量在组件内部使用。这样可以简化代码，并提高可读性。如果没有使用解构语法，那么我们需要这样来访问属性：props.car，并且在组件内部需要通过props.car.brand、props.car.price等方式来访问汽车的属性。
