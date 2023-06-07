@@ -61,7 +61,7 @@ async def create_car(request: Request, car: CarBase = Body(...)):
     new_car = await request.app.mongodb["cars1"].insert_one(car)
     # 这行代码从 MongoDB 中查询刚刚插入的记录。find_one({"_id": new_car.inserted_id}) 查找 _id 等于新插入记录的 _id 的记录，并返回一个文档。
     created_car = await request.app.mongodb["cars1"].find_one(
-        {"_id": new_car.inserted_id}
+        {"_id": ObjectId(new_car.inserted_id)}
     )
     # 这行代码创建了一个 JSONResponse 实例并将其返回。JSONResponse 的状态码是 201，表示创建了一条新的资源，内容是 created_car。
     return JSONResponse(status_code=status.HTTP_201_CREATED, content=created_car)
@@ -80,16 +80,16 @@ async def show_car(id: str, request: Request):
 @router.patch("/{id}", response_description="Update car")
 async def update_task(id: str, request: Request, car: CarUpdate = Body(...)):
     await request.app.mongodb["cars1"].update_one(
-        {"_id": id}, {"$set": car.dict(exclude_unset=True)}
+        {"_id": ObjectId(id)}, {"$set": car.dict(exclude_unset=True)}
     )
-    if (car := await request.app.mongodb["cars1"].find_one({"_id": id})) is not None:
+    if (car := await request.app.mongodb["cars1"].find_one({"_id": ObjectId(id)})) is not None:
         return CarDB(**car)
     raise HTTPException(status_code=404, detail=f"Car with {id} not found")
 
 
 @router.delete("/{id}", response_description="Delete car")
 async def delete_task(id: str, request: Request):
-    delete_result = await request.app.mongodb["cars1"].delete_one({"_id": id})
+    delete_result = await request.app.mongodb["cars1"].delete_one({"_id": ObjectId(id)})
     if delete_result.deleted_count == 1:
         return JSONResponse(status_code=status.HTTP_204_NO_CONTENT, content=None)
     raise HTTPException(status_code=404, detail=f"Car with {id} not found")
