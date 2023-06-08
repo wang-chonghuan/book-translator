@@ -2,10 +2,12 @@
 项目启动步骤
 -----------------------------------------------------------------------------------------
 .\venv\Script\activate
-.\backend\uvicorn main:app --reload
-检查routes/cars.jsx里的服务端地址
-.\frontend\npm run start
-http://localhost:3000/cars
+把frontend和backend目录里的dotenv*全部改成.env
+把.env里的<password>改成真实的密码
+进入
+uvicorn main:app --reload
+进入
+npm run start
 -----------------------------------------------------------------------------------------
 开发环境配置
 -----------------------------------------------------------------------------------------
@@ -32,6 +34,10 @@ uvicorn main:app --reload
 一个管理环境变量的工具
 pip install python-decouple
 
+三个环境变量配置文件
+/frontend/.env.production
+/frontend/.env.development
+/backend/.env
 -----------------------------------------------------------------------------------------
 heroku部署
 -----------------------------------------------------------------------------------------

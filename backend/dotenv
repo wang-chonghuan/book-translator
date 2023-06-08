@@ -1,3 +1,0 @@
-DB_URL=mongodb+srv://waltwang:<password>@cluster0.rgwkinx.mongodb.net/?retryWrites=true&w=majority
-DB_NAME="carsApp"
-COLLECTION_NAME="cars1"
