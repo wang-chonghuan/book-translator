@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html>
+<body>
+<p><p>7. 认证和授权</p>
+<p>认证（证明用户是其声称的用户）和授权（确保经认证的用户能否执行我们的API中的某些操作）的概念非常复杂，有几本好（而且厚实）的书籍专门介绍。在本章中，我们将从非常实用的角度和我们的FARM堆栈视角探讨认证和授权主题。我们将从基于JWT的非常简单但强大且可扩展的FastAPI后端设置开始，JWT可以说是最近几年最流行的身份验证方法之一。然后，我们将看到如何将基于JWT的身份验证方法集成到React中，利用React的一些最酷、最新的功能，即Hooks、Context和React Router。</p>
+<p>本章将涵盖以下主题：</p>
+<ul>
+<li>用户模型及其与其他资源的关系</li>
+<li>JWT身份验证机制的简要概述——大局观</li>
+<li>FastAPI提供的身份验证和授权工具概述</li>
+<li>如何保护我们的路由、路由器或整个应用程序</li>
+<li>使用React进行身份验证的各种解决方案</li>
+</ul>
+<p>通过本章的学习，您应该能够掌握FastAPI在后端和React在前端提供的身份验证方法，并能够以细粒度和精度认证用户以及控制他们在应用程序中可以或不能够执行的操作。</p></p><p><div>
+<h3>身份验证和授权</h3>
+<p><strong>技术要求</strong></p>
+<p>要运行本章节中的示例应用程序，您需要在本地计算机上安装Node.js和Python。要求与上一章节相同，并将指出将要安装的新软件包。您应该拥有较新的Python安装（版本3.6或更高版本）和Node.js安装（版本14或更高版本）。您的计算机应该能够同时处理几个Visual Studio Code实例，一些终端和可能有十几个浏览器选项卡。</p>
+<p><strong>理解JSON Web Token——我们的安全密钥</strong></p>
+<p>HTTP是无状态协议，这一事实本身就带来了几个重要的后果。其中之一是，如果我们想在请求之间保留某种状态，就必须采用一种能够记住登录用户是谁、之前浏览器会话中选择的汽车是什么或网站喜好的机制。</p>
+<p>广义上讲，我们在执行身份验证时可以采用许多策略。基于凭据的身份验证要求用户输入一些个人凭据，通常是用户名或电子邮件和密码。在过去几年中获得了一定影响力的新方法是无密码登录的概念——一旦用户创建了一个账户，他们将通过电子邮件收到一条神奇的链接，用于验证会话，无需输入（和记忆！）密码。生物识别密码使用用户的某些生物特征，例如指纹，而社交身份验证使用用户在社交网络（Google、Facebook或LinkedIn）上的账户将用户与他们的账户关联起来。在本章中，我们将考虑一种经典的个人凭据方法——当用户注册时，他们可以提供电子邮件、选择密码和（可选）用户名。</p>
+<p>虽然维护用户身份的不同方法，JWT（JSON Web Token）可能是连接前端应用程序（React、Vue.js和Angular）或移动应用程序与API（在我们的情况下为REST API）的最常见和流行方法。</p>
+<p>JWT只是一种标准——一种将看似随机字符和数字组成的大字符串结构化的方法。</p>
+<p>JWT包含三个部分：标头、载荷和签名。标头包含有关令牌本身的元数据：用于签署令牌的算法和令牌类型。</p>
+<p>载荷是最有趣的部分。它包含数据（声明）：用户的ID（或用户名）和发出令牌的时间戳（iat）字段、令牌失效的过期时间以及可选的其他字段。载荷是可以被所有人解码和读取的。有一个非常有用的网站——https://jwt.io——可以让我们使用令牌并查看其外观。</p>
+</div></p><p>
+  <p>使用JWT进行用户关系的FastAPI后端</p>
+  <p>如果Web应用程序（或移动应用程序）不安全，它们就不太有用 - 我们不断听到身份验证实现中的微小错误导致数十万甚至数百万被攻击的帐户，这些帐户可能包括敏感和有价值的信息。</p>
+  <p>FastAPI基于OpenAPI - 以前称为Swagger - 用于创建API的开放规范。 因此，OpenAPI使我们能够定义与各种协议兼容的各种安全方案(apiKey、http、oauth2、openIdConnect等)。虽然FastAPI文档网站提供了一个针对创建身份验证流的优秀而详细的教程，但它基于oauth2协议，该协议使用表单数据发送凭据（用户名和密码）。</p>
+  <p>你可以使用几十种方法来为API实现某种类型的安全性，但在本章中，我真正想要实现的是仅给你提供可行的选项的想法，并创建一个基于JWT和JSON作为传输机制的简单身份验证系统，这个工作流容易扩展以满足您未来的需求，并且提供足够的移动部件，以便能够看到机制本身。 在接下来的几节中，我们将设计一个简单的用户模型，使我们能够拥有身份验证流。 然后，我们将学习如何将用户数据编码为JWT令牌，以及如何在访问受保护的路由时要求该令牌。</p>
+  <p>创建用户模型和MongoDB关系</p>
+  <p>为了能够讨论身份验证用户的概念，我们必须将用户实体引入我们的应用程序 - 到现在为止，我们只看到了如何在单个实体（汽车）上执行CRUD操作。 一个真正的应用程序可能至少有几个模型，而用户模型肯定是强制性的。 虽然您可以将各种数据存储在用户模型中，但这真的取决于您的需求; 对于一个小型应用程序，几个字段就足够了 - 电子邮件和/或用户名，密码，可能一些角色（常规用户，管理员或编辑），等等。 对于发布平台，您将希望添加一个简短的生物，可能是一个图像等等。</p>
+</p><p><h2>认证和授权</h2>
+<p>使用MongoDB建模数据与关系型数据库不同，如第2章“使用MongoDB设置文档存储”所述。关键思想是事先考虑查询并建立模型关系，考虑应用程序将经常进行的查询。</p>
+<p>首先，我们有哪些需求？好吧，我们的利益相关者对以前的CRUD应用程序感到满意，最终他们希望将其转换为公共网站 - 潜在客户应该显示出汽车，而用于插入新汽车并更新或删除现有汽车的页面应该受到保护。目前设想了两种用户类型：销售人员 - 可以插入新车并编辑和删除“自己”的汽车（即，他们负责的公司车辆），以及管理员 - 一些经理将监督整个过程，并且应该能够执行所有操作，而不管是谁的实体。为了让事情尽可能简单，我将制作一个简单的基于参考的模型；汽车将仅具有附加字段（例如外键），其中包含用户的ID，非常类似于关系型数据库模型。我们可以将所有用户的汽车嵌入用户模型的列表中，但在这个应用中，这将足够了。</p>
+<p>让我们开始应用程序的模型。我们应该使用与路由器相同的结构 - 创建一个/models目录和两个文件（users.py和cars.py） - 但是为了尽可能保持项目简单，我将它们放在一个单独的models.py文件中。在您有多个模型的情况下，应避免这样做！</p>
+<p>让我们从应用程序的入口点main.py开始，它将非常类似于前一个章节中使用的内容：</p>
+
+<pre><code>
+from decouple import config
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from motor.motor_asyncio import AsyncIOMotorClient
+from routers.cars import router as cars_router
+from routers.users import router as users_router
+
+DB_URL = config('DB_URL', cast=str)
+DB_NAME = config('DB_NAME', cast=str)
+
+我刚刚添加了一个新路由器 - 我们现在将创建它：
+origins = [
+]    "*"
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+
+</code></pre></p><p><p>在本章中，我们将扩展第五章中构建的FastAPI应用程序，以支持更复杂的数据模型和关系。我们将添加一个路由器来处理用户数据，并将其包含在应用程序中。我们还将从模型.py文件背景下将数据模型和Pydantic模型声明提取出来，这是一个很好的实践。</p>
+<p>在main.py文件中，我们创建了FastAPI应用程序并定义了允许跨域请求的参数。我们还添加了一些事件处理程序，以在启动时连接数据库客户端，并在退出时断开连接。我们在应用程序中添加了/cars路由器，以处理车辆数据。我们现在将/cars和/users路由器组合在一起。</p>
+<p>接下来，我们创建一个models.py文件。这段代码与我们在第5章中为CRUD应用程序编写的代码几乎相同，我们声明导入和创建MongoBaseModel以便将ObjectId平铺成字符串：</p>
+
+<pre><code class="language-python">from enum import Enum
+from bson import ObjectId
+from typing import Optional
+from pydantic import EmailStr, Field, BaseModel, validator
+from email_validator import validate_email, EmailNotValidError
+
+class PyObjectId(ObjectId):
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+</code></pre>
+
+<p>我们导入了一个用于Email验证的email_validator包：</p></p><p><h1>身份验证和授权</h1>
+<p>在models.py文件中，我们定义了一个基本的MongoDB数据模型，包含一个自动创建的objectId，名称为PyObjectId。我们还定义了一个函数来验证传递给模式的ObjectId是否有效。这个函数使用PyMongo的ObjectId进行验证。</p>
+
+<p>我们还定义了一个基本的模型，并在其上实现了我们的模式。我们使用Pydantic来表示这个数据模型，并使用字段别名和默认工厂来创建ID。我们还定义了一个方法来更新该模式，以便将其导出为字符串。</p>
+
+<p>请注意，我们导入了email-validator包，因为它不是Pydantic的一部分 - 您应该使用以下命令安装它：</p>
+
+<p>pip install email-validator</p>
+
+<p>这是一个Pydantic所需的包，用于验证电子邮件地址，因为我们要求在用户注册时提供有效的电子邮件地址。尽管在本章中我不会实现客户端注册流程，但我将创建用户创建路由，这将需要一个有效的电子邮件地址。谁知道，也许公司的所有者以后会决定为客户引入用户帐户？</p>
+
+<p>在同一个文件models.py中，我们定义了两个角色 - 销售员和管理员 - 以及一个非常基本的用户模型，仅包含用户名、电子邮件、密码和角色字段。由于电子邮件字段是唯一不能直接从Pydantic进行验证的字段，因此我们通过使用电子邮件验证器包添加了一个简单的验证方法。它非常简单 - 如果提供的值不是有效的电子邮件，则返回错误：</p>
+
+<pre><code class="language-python">class Role(str, Enum):
+    SALESPERSON = "SALESPERSON"
+    ADMIN = "ADMIN"
+
+class UserBase(MongoBaseModel):
+    username: str = Field(..., min_length=3, max_length=15)
+    email: str = Field(...)</code></pre></p><p><h1>使用 FastAPI 构建带有用户和关系的后端</h1>
+<p>在本篇文章中，我们将一步步地展示如何使用 FastAPI 和 Pydantic 构建具有角色和用户关系的后端。让我们首先定义一些角色和基类模型：</p>
+<pre><code class="language-python">
+from enum import Enum
+from pydantic import BaseModel, EmailStr, Field, validator
+from common.validation import validate_email, EmailNotValidError
+
+class Role(str, Enum):
+    salesperson = "Salesperson"
+    admin = "Admin"
+
+class MongoBaseModel(BaseModel):
+    id: Any = None
+
+class PasswordBase(BaseModel):
+    password: str = Field(...)
+
+class CreateUserBase(PasswordBase):
+    username: str = Field(..., min_length=3, max_length=15)
+    email: str = EmailStr(...)
+    password: str = Field(...)
+    role: Role
+    @validator("email")
+    def valid_email(cls, v):
+        try:
+            email = validate_email(v).email
+            return email
+        except EmailNotValidError as e:
+            raise EmailNotValidError
+
+class LoginUserBase(BaseModel):
+    email: str = EmailStr(...)
+    password: str = Field(...)
+
+</code></pre>
+<p>上述代码定义了一个 <code>Role</code> 枚举类型，包括了销售人员和管理员两个角色。用户必须属于这两种角色之一。我们现在准备定义我们的用户模型和一些辅助模型：</p>
+<pre><code class="language-python">
+class UserBase(MongoBaseModel):
+    username: str = Field(..., min_length=3, max_length=15)
+    email: str = EmailStr(...)
+    password: str = Field(...)
+    role: Role
+    @validator("email")
+    def valid_email(cls, v):
+        try:
+            email = validate_email(v).email
+            return email
+        except EmailNotValidError as e:
+            raise EmailNotValidError
+
+class LoginBase(BaseModel):
+    email: str = EmailStr(...)
+    password: str = Field(...)
+
+class CurrentUser(BaseModel):
+    email: str = EmailStr(...)
+    username: str = Field(...)
+    role: str = Field(...)
+
+</code></pre></p><p><div>
+  <p>
+  认证和授权<br>
+  UserModel非常简单：我们要求用户名长度在3到15个字符之间、一个有效的电子邮件地址、密码和角色。我添加了两个额外的模型：LoginBase用于登陆路由以及CurrentUser，包含的数据是我们从模型中提取出来的，用于检查当前是谁在发出请求。下面是我决定将其放在同一个models.py文件中的Cars模型，它没有什么变化：<br>
+  </p>
+  <pre><code>class CarBase(MongoBaseModel):
+      brand: str = Field(..., min_length=3)
+      make: str = Field(..., min_length=1)
+      year: int = Field(..., gt=1975, lt=2023)
+      price: int = Field(...)
+      km: int = Field(...)
+      cm3: int = Field(..., gt=600, lt=8000)
+      
+  class CarDB(CarBase):
+      owner: str = Field(...)
+  
+  class CarUpdate(MongoBaseModel):
+      price: Optional[int] = None
+  </code></pre>
+  <p>
+  基本模型完整无缺，拥有我们之前的所有特性（里程、生产年份等）。我只是添加了一个叫做CarDB的新模型，它扩展了CarBase模型并添加了一个owner字段，即指定给汽车的用户的id。由于我们将所有的MongoDB ObjectIds都转换成了字符串，因此它也是一个字符串。CarUpdate模型只包含可选的价格更新。需要指出的是，该模型是一个真实系统的极度简化版本。我们可能想要将车辆ID列表作为User模型的一个字段，我们会有一堆DateTime字段，表示汽车被摆放出售、被卖出、被预订等的时刻。但是，在本章中，我只希望实现一个相当简单的基于JWT的身份验证系统，并保留仅满足具有工作机制所需的最小功能。<br>现在进入身份验证文件，它被恰当地称为authentication.py。让我们快速了解我们身份验证机制的要求：
+  </p>
+  <ul>
+    <li>一旦用户提交注册表单并发送他们的密码，密码应该被哈希处理，然后再插入到数据库中。</li>
+    <li>我们应该有一个已经准备好的函数，用于比较此存储的密码哈希值与登录阶段提交的后续密码，以验证它们是否匹配。</li>
+    <li>我们应该能够创建/编码JWT令牌，并使用自定义过期时间和包含用户ID的有效负载解码它们。</li>
+  </ul>
+</div></p><p>
+  
+    <p>使用FastAPI实现带有用户和关系的后端</p>
+    <p>
+      最后，我们应该有一个接受请求的函数，通过依赖注入返回请求者的ID或类似于无效令牌或令牌已过期的消息。
+      下面的机制是从YouTube视频（https://www.youtube.com/watch?v=xZnOoO3ImSY）中获得灵感并适应为比FastAPI文档提供的更简单的方法。
+      让我们开始构建我们的authentication.py文件。 首先，我们需要安装JWT认证机制所需的几个库。
+      Pyjwt是一个编码和解码JWT的库，而passlib是一个哈希字符串的库。 停止FastAPI服务器并在活动环境中输入以下命令：
+      pip install pyjwt passlib['bcrypt']
+    </p>
+    <p>
+      现在我们可以声明authentication.py文件中的import如下：
+    </p>
+    <pre>
+      <code>
+import jwt
+from fastapi import HTTPException, Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from passlib.context import CryptContext
+from datetime import datetime, timedelta
+      </code>
+    </pre>
+    <p>
+      正如我们之前所说的，jwt用于使我们能够编码和解码JWT，而FastAPI则为我们提供了所需的大部分功能。
+      HTTPException将处理令牌无效的情况-有效地将代码异常转换为有效的HTTP响应-而Security用于授权并突出显示需要进行用户身份验证的路由。
+      HTTPBearer是FastAPI类，用于确保HTTP请求具有适当的身份验证标头，而HTTPAuthorizationCredentials是从依赖注入返回的对象类型。
+      CryptContext用于创建哈希密码的上下文，它位于passlib.context下。 最后，我们导入了一些日期时间实用程序以签署令牌并为其指定到期日期。
+    </p>
+    <p>
+      在声明了我们的import之后，现在是创建一个我称之为Authorization的类的时候了，它将公开负责所有所需身份验证步骤的方法：
+    </p> 
+    <pre>
+      <code>
+class Authorization():    
+    security = HTTPBearer()
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    secret = 'FARMSTACKsecretString'
+      </code>
+    </pre>
+  
+</p><p><div>
+<h2>认证和授权</h2>
+<p>我们正在实例化FastAPI的最简单的认证方式 - HTTPBearer，并使用bcrypt算法创建密码上下文。我们还需要一个秘密字符串，可以自动生成以增加安全性。接下来，我们将处理密码的哈希：</p>
+<pre>
+def get_password_hash(self, password):
+    return self.pwd_context.hash(password)
+
+def verify_password(self, plain_password, hashed_password):
+    return self.pwd_context.verify(plain_password, hashed_password)
+</pre>
+<p>这些相当简单的函数确保用户的密码被哈希，并且可以通过将其与纯文本版本进行比较来进行验证。第二个函数返回简单的true或false值。现在，我们来到了类的核心 - 创建JWT：</p>
+<pre>
+def encode_token(self, user_id):
+    payload = {
+        'exp': datetime.utcnow() + timedelta(days = 0, minutes = 35),
+        'iat': datetime.utcnow(),
+        'sub': user_id
+    }
+    return jwt.encode(
+        payload,
+        self.secret,
+        algorithm='HS256'
+    )
+</pre>
+<p>前面的函数完成了大部分工作 - 它将user_id作为唯一参数，并将其放在payload的sub部分中。请记住，我们可以在JWT中编码更多信息 - 例如用户的角色或用户名。在这种情况下，sub部分将具有字典的结构，JWT将相当长。到期时间设置为35分钟，发行时间设置为JWT创建的时刻。最后，该函数使用jwt.encode方法对令牌进行编码。我们提供算法（HS256）和密码作为参数。</p>
+<p>类的解码部分非常相似；我们只需反转过程并提供必要的异常：</p>
+<pre>
+def decode_token(self, token):
+    try:
+        payload = jwt.decode(token, self.secret, algorithm='HS256')
+        return payload['sub']
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail='Signature has expired')
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail='Invalid token')
+</pre>
+</div></p><p><div>
+    <p>使用FastAPI构建带有用户和关系的后端</p>
+    <p>在开始编码之前，启动虚拟环境并安装FastAPI和jsonwebtoken:</p>
+    <p><code>pipenv install fastapi</code></p>
+    <p><code>pipenv install pyjwt</code></p>
+    <p>现在我们需要构建一个授权和验证用户的机制。我们将在authorization.py文件中实现所有的授权逻辑。开始创建一个AuthHandler类：</p>
+    <p><code>import jwt</code></p>
+    <p><code>from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer</code></p>
+    <p><code>from fastapi import Security, HTTPException</code></p>
+    <p>class AuthHandler:</p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;def __init__(self):</p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;self.secret_key = "secret_key"</p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;self.algorithm = "HS256"</p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;def encode_token(self, user_id: str) -&gt; str:</p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;payload = {"sub": user_id}</p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;return jwt.encode(payload, self.secret_key, 
+algorithm=self.algorithm)</p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;def decode_token(self, token: str) -&gt; str:</p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;try:</p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;payload = jwt.decode(token, 
+self.secret_key, algorithms=['HS256'])</p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;return payload['sub']</p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;except jwt.ExpiredSignatureError:</p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;raise HTTPException(status_code=401, 
+detail='Signature has expired')</p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;except jwt.InvalidTokenError as e:</p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;raise HTTPException(status_code=401, 
+detail='Invalid token')</p>
+    <p>decode_token函数仅返回令牌的sub部分，即用户的ID，而我们在令牌无效或过期时提供适当的异常。最后，我们创建一个auth_wrapper函数，用于在路由中进行依赖注入。如果函数返回用户的ID，则该路由将可访问；否则，我们将获得HTTPException：</p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;def auth_wrapper(self, auth: HTTPAuthorizationCredentials = 
+Security(security)):</p>
+    <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;return self.decode_token(auth.credentials)</p>
+    <p>authorization.py文件不到40行，但具有很大的威力——它使我们能够通过利用出色的FastAPI依赖注入机制来保护路由。</p>
+    <p>让我们深入users router，并测试我们的身份验证逻辑。在routers文件夹中，创建一个users.py文件，并开始导入和类实例化：</p>
+    <p><code>from fastapi import APIRouter, Request, Body, status, 
+HTTPException, Depends</code></p>
+    <p><code>from fastapi.encoders import jsonable_encoder</code></p>
+    <p><code>from fastapi.responses import JSONResponse</code></p>
+    <p><code>from models import UserBase, LoginBase, CurrentUser</code></p>
+    <p><code>from authentication import AuthHandler</code></p>
+    <p><code>router = APIRouter()</code></p>
+    <p><code>auth_handler = AuthHandler()</code></p>
+    <p>在标准的FastAPI导入中，包括jsonable_encoder和JSONResponse，我们从user models中导入了AuthHandler类和用户的AuthHandler实例。然后我们继续创建路由，将负责所有用户路由的路由器和AuthHandler实例。让我们从注册路由开始，这样我们就可以创建一些用户并使用REST客户端进行测试：</p>
+    <p><code>@router.post("/register", response_description="Register user")</code></p>
+    <p><code>async def register(request: Request, newUser: UserBase = 
+Body(...)):</code></p>
+</div></p><p><h2>认证和授权</h2>
+<p>register 路由将在 /users/register 的URL上启用，通过请求和 Pydantic 的 UserBase 类型的 newUser 实例通过请求体。我们首先使用 auth_handler.get_password_hash 函数来替换密码为哈希密码，并将 Pydantic 模型转换为 jsonable_encoder 实例。</p>
+<p>现在，我们执行标准的注册检查：电子邮件和用户名应该可用；否则，我们抛出异常，通知用户用户名或密码已经被占用：</p>
+<pre><code>if (existing_email := await request.app.mongodb["users"].find_one({"email": newUser["email"]}) is not None):
+    raise HTTPException(status_code=409, detail=f"User with email {newUser['email']} already exists")
+if (existing_username := await request.app.mongodb["users"].find_one({"username": newUser["username"]}) is not None):
+    raise HTTPException(status_code=409, detail=f"User with username {newUser['username']} already exists")</code></pre>
+<p>前面的函数可以重构以允许进一步检查，但我想让它们尽可能明确。函数的最后一部分非常简单；我们只需要将用户插入 MongoDB！您可以在以下代码中看到：</p>
+<pre><code>user = await request.app.mongodb["users"].insert_one(newUser)
+created_user = await request.app.mongodb["users"].find_one({"_id": user.inserted_id})</code></pre></p><p><h3>FastAPI后端与用户关系</h3>
+<p>在我们的FastAPI应用程序中，我们需要进行一些用户验证。我们将使用MongoDB进行用户存储和身份验证。首先，我们需要安装PyMongo和bcrypt。我们可以使用Python官方包管理器pip安装这些包。</p>
+<p>然后我们可以定义一个路由器，并在其上添加一些操作：“注册用户”，“登录用户”和“获取单个用户”。下面是路由程序的一个示例。我们将使用Pydantic模型来定义输入和响应数据，以便Pydantic可以验证和分析输入。</p>
+<hr>
+<h4>注册用户</h4>
+<p>在注册功能中，我们需要添加用户。通过HTTPie，我们设计了一个HTTP请求来调用我们的API。我们将使用MongoDB进行用户存储，并使用bcrypt进行密码哈希。</p>
+<pre><code>@router.post("/users/register", response_description="Add new 
+user")
+async def add_user(request: Request, user: UserBase = Body(...)) -> 
+JSONResponse:
+    user = jsonable_encoder(user)
+    hashed_password = auth_handler.get_password_hash(user["password"])
+    user["password"] = hashed_password
+    created_user = await request.app.mongodb["users"].insert_one(user)
+    created_user = await 
+request.app.mongodb["users"].find_one({"_id": 
+        created_user.inserted_id})
+    del created_user["password"]
+
+    return JSONResponse(status_code=status.HTTP_201_CREATED, 
+        content=created_user)</code></pre>
+<p>我们返回标准的201 CREATED状态码，现在我们准备使用HTTPie进行一些基本测试，HTTPie是一个命令行的REST客户端。让我们尝试创建一个用户如下：</p>
+<pre><code>(venv) λ http POST 127.0.0.1:8000/users/register 
+username="bill" password="bill" role="ADMIN" email="koko@gmail.
+{    com"
+    "_id": "629333d7e33842d9499e6ac7",
+    "email": "koko@gmail.com",
+    "password": "$2b$12$HKGcr5CnxV7coSMgx41gRu34Q11Qb.
+        m5XZHlX1tslH8ppqlVB2oJK",
+    "role": "ADMIN",
+    "username": "bill"
+}</code></pre>
+<p>我们得到一个具有哈希密码，角色和_id的新用户。当然，我们不希望将密码发送回用户，即使它被哈希，但是您已经具备创建新的Pydantic模型的知识，该模型返回除密码之外的所有字段。让我们转移到登录路由，它与Flask或Express.js使用的内容非常相似。我们接收电子邮件和密码（我们可以选择用户名），首先通过电子邮件尝试查找用户，之后将密码与哈希函数进行比较：</p>
+<pre><code>@router.post("/login", response_description="Login user")
+async def login(request: Request, loginUser: LoginBase = 
+Body(...)) -> str:
+    user = await request.app.mongodb["users"].find_
+        one({"email": loginUser.email})
+    if (user is None) or (
+        not auth_handler.verify_password(loginUser.password, 
+            user["password"])
+    ):
+        raise HTTPException(status_code=401, detail="Invalid 
+            email and/or password")
+    token = auth_handler.encode_token(user["_id"])
+    response = JSONResponse(content={"token": token})
+    return response</code></pre>
+<hr>
+<p>请将上述文本翻译成中文，不要添加或删除任何内容。然后将翻译的结果格式化成html，代码放在合适的标签里。最后只返回给我这个html，其他任何额外的东西都不要返回给我。</p></p><p><h3>身份验证和授权</h3>
+<p>如果用户存在且密码通过哈希验证，则创建令牌并将其作为JSON响应返回。这个宝贵的令牌将负责我们应用程序中的身份验证，它将是每个请求需要发送到服务器的唯一数据。我们还可以通过使用适当的凭据来命中/用户/登录路由来测试登录路由：</p>
+<pre>
+<code>λ http POST http://127.0.0.1:8000/users/login email="tanja@
+gmail.com" password="tanja"
+HTTP/1.1 200 OK
+content-length: 184
+content-type: application/json
+date: Wed, 01 Jun 2022 20:13:32 GMT
+{server: uvicorn
+    "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.
+eyJleHAiOjE2NTQxMTY1MTMsImlhdCI6MTY1NDExNDQxMywic3
+ViIjoiNjI4OTQyODU3YTBjYmZlNGE2MzQwNDdkIn0.v1FTBM0wIlDKUw_
+VVCJlsSItM58sDzDnwGbzyDKs_pc"
+}</code>
+</pre>
+<p> 我们得到了令牌！您也可以尝试使用错误的用户名/密码组合进行相同的路由并检查响应。</p>
+<p>我们将需要在用户路由器中添加一个最终路由：/me路由。这条路线不应该被直接调用和生成页面，只能作为帮助者使用 - 验证当前登录用户发出请求的方式。/me路由不应接受除身份验证依赖项以外的任何参数 - 完美的机会来测试我们的身份验证包装器：</p>
+<pre>
+<code>@router.get("/me", response_description="Logged in user data")
+async def me(request: Request, userId=Depends(auth_handler.
+auth_wrapper)):
+    currentUser = await request.app.mongodb["users"].find_
+        one({"_id": userId})
+    result = CurrentUser(**currentUser).dict()
+    result["id"] = userId
+    return JSONResponse(status_code=status.HTTP_200_OK, 
+        content=result)</code>
+</pre>
+<p>此路由非常简单：如果提供的令牌有效且未过期，则auth_wrapper将返回userId - 发出请求的用户的ID。否则，它将返回HTTP异常。在此路由中，我已添加了一个数据库调用，以便根据CurrentUser模型检索有关用户的所需数据。</p></p><p><h3>使用FastAPI后端实现用户和关系</h3>
+<p>我们可以把所有这些数据编码在令牌中，避免访问数据库，但我希望让JWT尽可能轻巧。</p>
+<p>现在，我们可以测试/me路由。首先，让我们使用之前注册的用户进行登录：</p>
+<pre><code class="language-python">http POST 127.0.0.1:8000/users/login password="bill" email="koko@gmail.com"
+</code></pre>
+<pre><code class="language-python">{HTTP/1.1 200 OK
+    "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJleHAiOj
+E2NTM4Mzk1NTksImlhdCI6MTY1MzgzNzQ1OSwic3ViIjoiNjI5MzMzZDdlMzM
+4NDJkOTQ5OWU2YWM3In0.
+ajpoftEFBWcfn2XClJqPDNcJMaS6OujZpaU8bCv0BNE"
+}</code></pre>
+<p>将此令牌复制并提供给/me路由：</p>
+<pre><code class="language-python">http GET 127.0.0.1:8000/users/me "Authorization:Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJleHAiOjE2NTM4Mzk1NTksImlhdCI6MTY1MzgzNzQ1OSwic3ViIjoiNjI5MzMzZDdlMzM4NDJkOTQ5OWU2YWM3In0. ajpoftEFBWcfn2XClJqPDNcJMaS6OujZpaU8bCv0BNE"</code></pre>
+<pre><code class="language-python">{HTTP/1.1 200 OK
+    "email": "koko@gmail.com",
+    "id": "629333d7e33842d9499e6ac7",
+    "role": "ADMIN",
+    "username": "bill"
+}</code></pre>
+<p>如果您尝试在没有Bearer令牌的情况下测试路由，您将收到未经身份验证的错误，并回到起点。</p>
+<p>最后，我将展示如何将身份验证依赖项插入到/cars路由器中（或者，实际上，您可能需要创建的任何其他路由器）。由于这将是一个相当长的文件，我不会解释所有内容 - 我将重点关注用于在一些路由上执行身份验证和授权的逻辑，而整个文件可在本书的GitHub存储库中找到。让我们看看/cars路由器的导入：</p>
+<pre><code class="language-python">from typing import List, Optional
+from fastapi import APIRouter, Request, Body, status,</code></pre></p><p><h1>身份验证和授权</h1>
+<p>在这部分中，我们将学习如何使用FastAPI实现身份验证和授权。我们将创建一个处理汽车信息的路由，其中包含用户信息作为车辆拥有者的ID。我们将创建一个AuthHandler类来处理身份验证，并使用Depends注入它。</p>
+<p>我们从导入模型开始。我们需要一个基本的汽车（CarBase）模型、一个表示实际存储在数据库中的汽车数据（CarDB）的模型，以及用于更新汽车信息的模型（CarUpdate）。此外，我们还需要FastAPI的一些组件，例如HTTPException和Depends。</p>
+<p>我们还需要从fastapi.encoders模块导入jsonable_encoder和从fastapi.responses模块导入JSONResponse。最后，我们导入我们的AuthHandler类，以便我们可以使用其身份验证代码。</p>
+<p>我们的Pydantic汽车模型已更改; 现在它包含一个称为owner的字段，基本上只是要销售汽车的用户的ID。我们将通过我们的身份验证依赖项向数据库提供此信息。当用户尝试插入一个实体的新实例时（汽车），他们必须进行身份验证才能继续。如果他们经过身份验证，我们将仅获取他们的ID并将其设置为owner字段值：</p>
+<pre><code>@router.post("/", response_description="Add new car")
+async def create_car(
+    request: Request,
+    car: CarBase = Body(...),
+    userId=Depends(auth_handler.auth_wrapper),
+):
+    car = jsonable_encoder(car)
+    car["owner"] = userId
+    new_car = await request.app.mongodb["cars2"].insert_one(car)
+    created_car = await request.app.mongodb["cars2"].find_one(
+        {"_id": new_car.inserted_id}
+    )
+    return JSONResponse( status_code=status.HTTP_201_CREATED, 
+        content=created_car)
+</code></pre>
+<p>最简单的情况是对应于GET /cars路径的部分，这是一个可以列出所有可用汽车的路径，其间通过查询字符串实现了一些分页。假设我们只希望已登录的用户（因此是销售员或管理员）访问此路径。</p></p><p><h4>使用FastAPI后端开发用户和关系</h4>
+<p>我们需要做的就是将身份验证包装器注入依赖项，FastAPI只有两个选择：要么令牌有效且新鲜，我们得到用户；要么抛出HTTPException；它实际上就是这么简单。因此，让我们创建列出汽车的路由 - 我们假设只有注册用户可以访问此路由：</p>
+<pre>
+<code>
+@router.get("/", response_description="List all cars")
+async def list_all_cars(
+    request: Request,
+    min_price: int = 0,
+    max_price: int = 100000,
+    brand: Optional[str] = None,
+    page: int = 1,
+    userId=Depends(auth_handler.auth_wrapper),
+) -> List[CarDB]:
+    RESULTS_PER_PAGE = 25
+    skip = (page - 1) * RESULTS_PER_PAGE
+    query = {"price": {"$lt": max_price, "$gt": min_price}}
+    if brand:
+        query["brand"] = brand
+    full_query = (
+        request.app.mongodb["cars2"]
+        .find(query)
+        .sort("_id", -1)
+        .skip(skip)
+        .limit(RESULTS_PER_PAGE)
+    )
+    results = [CarDB(**raw_car) async for raw_car in full_query]
+    return results
+</code>
+</pre>
+<p>虽然整个函数执行一些分页（每页25个硬编码的结果）并具有一些漂亮的选项，可以按价格和品牌进行过滤，但身份验证逻辑的要点在粗体行中。此外，请注意我创建了一个单独的MongoDB集合并将其命名为cars2，仅是为了将其与上一章中使用的集合区分开来，同时使用相同的数据库。</p></p><p><h3>身份验证和授权</h3>
+
+最后，让我们来看一下编辑车辆的路由（仅限调整价格）。我们只希望车辆的拥有者才能够编辑价格，此外，任何管理员也可以参与更新价格。对于这种情况，如果我们将用户的角色编码到 Jwt 中，那么它会节省我们一趟数据库的开销，但我想让你意识到开发 API 时需要做出的决定和取舍：
+
+<code>@router.patch("/{id}", response_description="Update car") async def update_task(
+    id: str,
+    request: Request,
+    car: CarUpdate = Body(...),
+    userId=Depends(auth_handler.auth_wrapper),
+):
+    user = await request.app.mongodb["users"].find_one({"_id": userId})
+    findCar = await request.app.mongodb["cars2"].find_one({"_id": id})
+    if (findCar["owner"] != userId) and user["role"] != "ADMIN":
+        raise HTTPException(
+            status_code=401, detail="Only the owner or an admin can update the car"
+        )
+    await request.app.mongodb["cars2"].update_one(
+        {"_id": id}, {"$set": car.dict(exclude_unset=True)}
+    )
+    if (car := await request.app.mongodb["cars2"].find_one({"_id": id})) is not None:
+        return CarDB(**car)
+    raise HTTPException(status_code=404, detail=f"Car with {id} not found")</code>
+
+在此路由处理程序中，我们首先获取发出请求的用户，然后找到要编辑的汽车。最后，我们执行了一个检查：如果车辆的所有者不是发出请求的用户，同时该用户也不是管理员，我们会抛出一个异常。否则，我们执行更新操作。FastAPI 的依赖注入是一个简单而强大的机制，它在身份验证和授权领域真正闪耀！</p><p><h1>在React中进行用户身份验证</h1>
+<p>在本节中，我们在FastAPI backend上创建了一个简单但高效的认证系统，创建了JWT生成器并能够验证令牌，我们保护了一些路由，并提供了创建（注册）新用户和登录所需的路由。现在是时候看看前端的情况了！</p>
+<h2>在React中进行用户身份验证</h2>
+<p>与安全的其他方面一样，React中的身份验证是一个庞大的主题，超出了本书的范围。在本节中，我将为你提供一个非常基本的机制，可以在客户端上实现简单的身份验证流程。一切都围绕JWT及其处理方式展开。在本章中，我们将仅将其存储在内存中。</p>
+<p>互联网和专业的文献充满了关于存储身份验证数据（在我们的案例中，是JWT令牌）的最佳解决方案的争论。就像往常一样，每个解决方案都有其优缺点。在本节开始时，我们将介绍其中一些。</p>
+<p>Cookie已经存在了很长时间，在浏览器中可以以键值对的形式存储数据，并且它们可由浏览器和服务器读取。它们的流行程度与经典的服务器端渲染网站相差无几。但是，它们仅能存储非常有限量的数据，并且这些数据的结构必须非常简单。</p>
+<p>随着HTML5的推出，Localstorage和Session Storage被引入为单页应用程序中存储复杂数据结构的一种方法，容量约为10MB，具体取决于浏览器的实现，而Cookie容量为4KB。Session Storage的数据会在会话期间保留，而Local Storage在浏览器中保留，即使关闭并重新打开，也会一直保存，直到手动删除。两者都可以托管复杂的JSON数据结构。</p>
+<p>将JWT存储在localstorage中非常好用，容易操作，提供了非常好的用户体验和开发者体验。但是，这是被反对的，因为它会将应用程序开放到各种漏洞，因为它们可以被在浏览器中运行的任何客户端JavaScript访问。</p>
+<p>绝大多数专家建议仅在HTTP中存储JWT-只有cookie，这些cookie不能通过JavaScript访问，并且要求前端和后端运行在同一个域上。这可以通过路由请求，使用代理等不同方式实现。另一种常用的策略是使用所谓的刷新令牌-我们在登录后发放一个令牌，然后此令牌自动用于生成其他（刷新）令牌，使我们能够平衡安全和用户体验。</p>
+<p>在本节中，我将构建一个非常简单和极简的React应用程序，只能满足最基本的要求;除非用户登录，否则应该保护某些路由和页面。我不会以任何方式持久化JWT-当用户刷新应用程序时，他们将被注销。这不是最愉快的用户体验，但现在这并不是问题。</p></p><p><h2>认证和授权</h2>
+<p>让我们一步步来。我们已经运行了FastAPI后端，现在准备创建简单的前端：</p>
+<ol>
+<li>在终端中导航到/chapter7目录，并创建一个React应用程序：</li>
+<pre><code>npx create-react-app frontend</code></pre>
+<li>将目录更改为frontend并安装Tailwind CSS：</li>
+<pre><code>npm install -D tailwindcss postcss@latest autoprefixer</code></pre>
+<li>使用以下命令初始化Tailwind：</li>
+<pre><code>npx tailwindcss init -p</code></pre>
+<li>现在是编辑postcss.config.js的时候了：</li>
+<pre><code>module.exports = {
+  content: [
+    "./src/**/*.{js,jsx,ts,tsx}",
+  ],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+}</code></pre>
+<li>最后，删除src/index.css文件中的所有内容，并替换内容为以下：</li>
+<pre><code>@tailwind base;
+@tailwind components;
+@tailwind utilities;</code></pre>
+<p>这些步骤应该已经很熟悉了，但是现在我想更进一步。Tailwind在过去几年中越来越受欢迎，不同的UI工具包和实用程序基于基本的Tailwind类。其中最受欢迎且可用性最高的之一是称为DaisyUI的工具包（https://daisyui.com），我们将使用它来原型化我们的应用程序。</p>
+<li>安装过程与Tailwind本身类似。在终端中键入以下命令：</li>
+<pre><code>npm i daisyui</code></pre>
+</ol></p><p><ol>
+<li>在React中进行用户验证</li>
+<li>在终端中创建一个React App并启动服务器</li>
+<li>安装Tailwind和DaisyUI依赖项</li>
+<li>在tailwind.config.js文件中添加颜色主题</li>
+<li>在index.css中引入DaisyUI</li>
+<li>创建登录和注册表单组件</li>
+<li>在tailwind.config.js中将daisyui注册为Tailwind插件</li>
+<li>删除不需要的文件并简化App.js</li>
+<li>测试Tailwind和DaisyUI是否工作正常</li>
+<li>安装React Router 6</li>
+<li>在index.js文件中设置Router</li>
+</ol> 
+
+function App() {
+  return (
+      <div className="App bg-zinc-500 min-h-screen flex flex-col justify-center items-center">
+      <button class="btn btn-primary">It works!</button>
+    </div>
+);
+}
+export default App;
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(
+  <React.StrictMode>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<App />} />
+      </Routes>
+    </BrowserRouter>
+  </React.StrictMode>,
+  document.getElementById('root')
+);</p><p>身份认证和授权
+
+我们将在/src/index.js中为我们的应用程序添加路由器。为此，我们将安装React Router，并将BrowserRouter导入到我们的应用程序中。我们将使用catch-all路径，它将在任何路径下都呈现我们的应用程序。代码如下：
+
+import React from 'react';
+import ReactDOM from 'react-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import App from './App';
+
+const root = document.getElementById('root');
+ReactDOM.render(
+  <React.StrictMode>
+    <BrowserRouter>
+      <Routes>
+        <Route path='/*' element={<App />} />
+      </Routes>
+    </BrowserRouter>
+  </React.StrictMode>,
+  root
+);
+
+我们将所有内容都包在路由器中，以便它“覆盖”整个应用程序，路径是catch-all星号(*)，而提供给路由器的元素是根组件App.js。现在来到定义所有可能的路由和组件的繁琐部分，但是我们将使用React Router的新功能——嵌套路由。我们不是将每个组件包装在包含公共网页元素（例如导航或页脚）的Layout组件中，而是使用Router的Outlet组件，该组件仅使用与URL模式匹配的嵌套组件的内容填充组件。
+
+12.让我们在/src下创建一个components文件夹并构建通用Header.jsx和Footer.jsx组件，利用我们的React ES6 Visual Studio Code扩展（通过输入_rafce）。代码如下：
+
+const Header = () => {
+  return <div>Header</div>;
+};
+export default Header;
+
+13.按照完全相同的过程，在/src/components文件夹中创建以下组件：Footer、HomePage、Login和Register，其中只包含返回组件名称的div。Layout.jsx将利用嵌套路由：
+
+import { Outlet } from "react-router-dom";
+import Header from "./Header";
+import Footer from "./Footer";
+const Layout = () => {
+  return (
+    <div className="App flex flex-col min-h-screen">
+      <Header />
+      <Outlet />
+      <Footer />
+    </div>
+  );
+};
+export default Layout;
+
+请把上述文本翻译成中文, 不要添加或删除任何内容. 然后把翻译的结果格式化成html, 代码放在合适的标签里. 最后只返回给我这个html, 其他任何额外的东西都不要返回给我</p><p><div>
+  <p class="text-center font-bold text-2xl">Layout组件</p>
+  <p>Layout组件非常简单但非常有用：它使用Outlet组件作为高阶组件，有效地包装了所包含的路由，添加了头部和底部。使用Tailwind的类使页面高度全屏，并将显示设置为flex。主要部分设置为flex-1，以占用所有剩余空间。</p>
+  <p class="text-center font-bold text-2xl">App.js文件</p>
+  <p>现在更新了App.js文件如下：</p>
+  <pre>
+    <code>
+      import {Route, Routes} from "react-router-dom"<br>
+      import Layout from "./components/Layout";<br>
+      import Login from "./components/Login";<br>
+      import Register from "./components/Register";<br>
+      import HomePage from "./components/HomePage";<br>
+      function App() {<br>
+        &emsp;return (<br>
+          &emsp;&emsp;&lt;Routes&gt;<br>
+            &emsp;&emsp;&emsp;&lt;Route path="/" element=&lt;Layout /&gt;&gt;<br>
+              &emsp;&emsp;&emsp;&emsp;&lt;Route path="/" element=&lt;HomePage /&gt; /&gt;<br>
+              &emsp;&emsp;&emsp;&emsp;&lt;Route path="login" element=&lt;Login/&gt; /&gt;<br>
+              &emsp;&emsp;&emsp;&emsp;&lt;Route path="register" element=&lt; Register/&gt; /&gt;<br>
+            &emsp;&emsp;&lt;/Route&gt;<br>
+          &emsp;&lt;/Routes&gt;<br>
+        );<br>
+      }<br>
+      export default App;
+    </code>
+  </pre>
+  <p>App.js文件通过react-router-dom库中的Route和Routes组件来显示组件和路由。每个Route有其自己的路径和匹配的元素（组件）。</p>
+</div></p><p><h2>身份认证和授权</h2>
+<p>敏锐的观察者会立即注意到使用布局组件作为渲染元素的 Route 元素不是自关闭的--实际上，它将所有剩余的路由包含在内，将它们引导，同时添加标头和页脚组件。非常出色和优雅！您可以手动尝试更改URL；导航到 /login、/register 或只是React网站的根URL (/)，并查看中间部分是否更新。路由已经设置好并运行。我们将为汽车的CRUD操作添加更多路由，但它们将受到保护--用户必须提供有效的JWT令牌作为凭据才能访问它们（即使他们可以访问React路由，没有令牌也无法在后端执行操作）。现在是介绍另一个React Hook useContext的时候了。</p>
+<p>当位于组件树下层的组件需要通过一系列组件-父组件传递props时，Context是React中解决prop-drilling问题的一种方式--父组件并不需要这些props。Context是一种共享值（字符串、数值、列表和对象）与所有被包含在context provider中的组件的方法。useContext Hook--用于与context交互--是新的基于hook的React中最酷的功能之一，可以处理许多常见的设计问题。</p>
+<p>使用context有些特别，不像useState或useEffect hook那样，因为它涉及到一些移动部分，但我们将使用最简单的版本，结合自定义Hook，以便更容易地访问。</p>
+<p>第一步是创建一个上下文，使用React提供的createContext。该函数接受默认参数，因此可以为其提供一个字典：{username：“Marko”}。只有在没有提供其他值时才会使用此参数。函数甚至还可以传递用于设置或修改上下文值的函数，并且这正是我们要做的。我们可以设置一个auth值，用于存储已登录用户的数据（如果有的话），但也可以设置一个setAuth函数，当用户登录时调用该函数来设置用户数据。我们还可以使用此函数来注销用户，只需将auth的上下文值设置为null值即可。</p>
+<p>第二步是使用上下文提供者--一个React组件，允许其他组件消耗我们的上下文。所有包含在提供程序内的消费者将在上下文（提供程序的值）更改时重新渲染。提供程序是提供上下文值（而不是props）给子组件的工具。</p>
+<p>现在是使用Hook useContext的时候了，它将上下文作为参数取出并使其可用于组件。我们将使用它来访问上下文。下面的示例将更加清晰。请按照以下步骤执行：</p>
+<ol>
+  <li>在 /src/context/AutProvider.js 文件中使用最简单的上下文创建一个带有单个状态变量auth的函数（使用useState Hook，setAuth）。</li>
+  <li>在AuthContextContext对象导出语句后面添加一个AuthProvider函数，这个函数接收一个名为children的props。</li>
+  <li>在函数中，将AuthContext.Provider嵌套在return语句中，并使用value属性将auth和setAuth传递给其他组件。</li>
+  <li>在现有项目中，更改index.js文件以使用AuthProvider提供上下文。 </li>
+</ol></p><p><div>
+    <p>在React中进行用户身份验证</p>
+    <p>首先，我们需要创建一个React Context，该Context将存储我们想要在整个应用程序中共享的身份验证信息auth和setAuth。在/src/context目录下，创建一个文件名为AuthProvider.js的文件，并将以下代码添加到文件中：</p>
+    <pre>
+    <code>
+        import React, {'{'}createContext, useState{'}'} from "react";
+        const AuthContext = createContext()
+        const AuthProvider = ({children}) => {'{'}
+            const [auth, setAuth] = useState(null)
+            return {'<'}AuthContext.Provider value={{auth, setAuth}}{'>'}
+                {'{'}children{'}'}
+            {'<'}AuthContext.Provider{'/>'}
+        {'}'}
+        export default AuthContext
+    </code>
+    </pre>
+    <p>现在，我们可以在index.js文件中包装我们的Router路由，并使auth和setAuth在所有路由中可用。编辑index.js文件：</p>
+    <pre>
+    <code>
+        import {'{'} AuthProvider {'}'} from './context/AuthProvider';
+        …
+        {'<'}React.StrictMode{'>'}
+            {'<'}BrowserRouter{'>'}
+                {'<'}AuthProvider{'>'}
+                    {'<'}Routes{'>'}
+                        {'<'}Route path='/*' element={'<'}App /{'>'} /{'>'}
+                    {'<'}Routes /{'>'}
+                {'<'}AuthProvider /{'>'}
+            {'<'}BrowserRouter/{'>'}   
+        {'<'}React.StrictMode/{'>'}
+    </code>
+    </pre>
+    <p>最后，由于我们不想在每个组件中都导入AuthContext provider和useContext，我们将创建一个简单的实用程序Hook，它将为我们导入context。</p>
+    <p>在/src/hooks文件夹中，创建一个名为useAuth.js的文件：</p>
+    <pre>
+    <code>
+        import {'{'} useContext {'}'} from "react";
+        import AuthContext from "../context/AuthProvider";
+        const useAuth = () => {'{'}
+            return useContext(AuthContext)
+        {'}'}
+        export default useAuth;
+    </code>
+    </pre>
+    <p>这个设置可能看起来很复杂，但实际上并不复杂-我们只需要创建一个context和一个hook来方便我们的工作。好处是现在我们可以覆盖整个应用程序的范围并设置和获取我们的auth变量的值。让我们开始使用我们的React身份验证机制并创建登录组件。</p>
+    <p>为了进行表单处理，我想介绍一个第三方包：React Form Hook (https://react-hook-form.com/)。</p>
+</div></p><p>认证和授权
+我们已经看到在React中手动处理表单可以变得非常繁琐，因此有一些经过优化的，经过实战检验的解决方案。在本章中，我们将使用React表单Hook。让我们开始安装它：
+npm install react-hook-form
+使用npm run start重新启动React服务器并启动Login.jsx组件。这可能是最复杂的组件（从逻辑上讲），让我们来分解一下：
+import { useForm } from "react-hook-form";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import useAuth from "../hooks/useAuth";
+我们导入useForm Hook，useState用于一些状态变量，使用路由器的useNavigate Hook进行重定向以进行登录后的身份验证，以及我们的useAuth Hook，因为我们想在成功登录后设置身份验证上下文。然后开始绘制我们的组件并设置Hook：
+const Login = () => {
+  const [apiError, setApiError] = useState();
+  const { setAuth } = useAuth();
+  let navigate = useNavigate();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm();
+ApiError变量应该是不言自明的 - 我将使用它来存储从后端生成的潜在错误，以便稍后显示它们。navigate用于程序化导航到路由器中的不同页面，而react-form-hook为我们提供了几个有用的工具：register用于将表单输入注册到Hook实例中，handleSubmit用于处理表单提交，而errors将托管过程中的错误。让我们继续编写代码：
+  const onFormSubmit = async (data) => {
+    const response = await fetch("http://127.0.0.1:8000/users/ 
+        login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+
+-------------------------------------
+<div>
+<p>认证和授权</p>
+<p>我们已经看到在React中手动处理表单可以变得非常繁琐，因此有一些经过优化的，经过实战检验的解决方案。在本章中，我们将使用React表单Hook。让我们开始安装它：</p>
+<pre><code class="lang-js">npm install react-hook-form</code></pre>
+<p>使用npm run start重新启动React服务器并启动Login.jsx组件。这可能是最复杂的组件（从逻辑上讲），让我们来分解一下：</p>
+<pre><code class="lang-js">import { useForm } from "react-hook-form";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import useAuth from "../hooks/useAuth";</code></pre>
+<p>我们导入useForm Hook，useState用于一些状态变量，使用路由器的useNavigate Hook进行重定向以进行登录后的身份验证，以及我们的useAuth Hook，因为我们想在成功登录后设置身份验证上下文。然后开始绘制我们的组件并设置Hook：</p>
+<pre><code class="lang-js">const Login = () =&gt; {
+  const [apiError, setApiError] = useState();
+  const { setAuth } = useAuth();
+  let navigate = useNavigate();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm();</code></pre>
+<p>ApiError变量应该是不言自明的 - 我将使用它来存储从后端生成的潜在错误，以便稍后显示它们。navigate用于程序化导航到路由器中的不同页面，而react-form-hook为我们提供了几个有用的工具：register用于将表单输入注册到Hook实例中，handleSubmit用于处理表单提交，而errors将托管过程中的错误。让我们继续编写代码：</p>
+<pre><code class="lang-js">  const onFormSubmit = async (data) =&gt; {
+    const response = await fetch("http://127.0.0.1:8000/users/ 
+        login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",</code></pre></p><p><div>
+  <p>在React中对用户进行身份验证</p>
+  <p>onSubmit函数类似于我们手动完成的操作：使用表单数据将POST请求发送到/login端点并将其编码为JSON。如果一切正常（即响应为“ok”，它代表响应代码在200-299范围内），则我们继续获取令牌。然后将此令牌输入另一个名为getUserData的函数中。如果API发送任何错误，则将此错误放入apiError状态变量中。请记住，FastAPI具有包含可读的人类消息错误的详细信息密钥。错误只会发送到控制台。</p>
+  <p>现在来看getUserData函数-它仅是对后端的/ me路线进行调用：</p>
+  <pre>
+    <code>
+      const getUserData = async(token) =&gt;{
+        const response = await fetch("http://127.0.0.1:8000/users/me", {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer $ {token}`,
+          }
+        });
+        if(response.ok) {
+          let userData = await response.json();
+          userData ["token"] = token;
+          setAuth(userData);
+          setApiError(null);
+          navigate("/", { replace: true });
+        }
+      }
+    </code>
+  </pre>
+</div></p><p><div class="mx-auto p-10 rounded-lg shadow-2xl">
+  <h2 class="text-xl text-primary text-center font-bold my-2">
+    登录页面
+  </h2>
+  <form onSubmit={handleSubmit(onFormSubmit, onErrors)}>
+    <div class="flex flex-col justify-center items-center">
+      <input
+        type="text"
+        placeholder="电子邮件"
+        class="input input-bordered input-accent w-full max-w-xs m-3"
+        name="email"
+        autoComplete="off"
+        {...register("email", { required: "电子邮件地址不能为空" })}
+      />
+      {errors?.email && errors.email.message}
+      <input
+        type="password"
+        placeholder="密码"
+        class="input input-bordered input-accent w-full max-w-xs m-3"
+        name="password"
+        {...register("password", { required: "密码不能为空" })}
+      />
+      {errors?.password && errors.password.message}
+      <button type="submit" class="btn btn-primary m-3">
+        登录
+      </button>
+    </div>
+  </form>
+</div>
+
+这是一个登录页面的代码，是 React.js 中的一部分。它使用 JWT（JSON Web Token）进行身份验证和授权。当用户输入电子邮件和密码并提交表单时，它将触发 handleSubmit 函数。该函数将调用 onFormSubmit 和 onErrors 函数，用于处理表单数据和处理任何错误。如果成功返回一个令牌，我们将其存储在 localStorage 中以便以后使用。
+
+接下来，我们使用 axios 库，通过向身份验证端点发送 POST 请求来获取用户数据。我们将令牌添加到请求的标头中。如果获得用户（OK 响应），我们使用该用户的数据填充 authContext 中的 auth 对象。最后，我们使用路由器将用户发送到主页。剩余部分是 HTML 和一些实用类。</p><p><p>在React中验证用户身份</p>
+<p>我们将使用React创建一个简单的用户登录页面，并使用React Hook处理表单验证和重定向，以便在用户成功登录后进入主页。</p>
+<p>首先，我们需要定义一个React函数组件作为登录页面：</p>
+<pre>
+<code>import React, { useState } from "react";
+import { Redirect } from "react-router-dom";
+import useForm from "../hooks/useForm";
+import useAuth from "../hooks/useAuth";
+
+const Login = () => {
+  const { login, isAuthenticated, apiError } = useAuth();
+  const [redirect, setRedirect] = useState(false);
+  const { register, handleSubmit, errors } = useForm();
+
+  const onSubmit = async (data) => {
+    const success = await login(data.email, data.password);
+    if (success) {
+      setRedirect(true);
+    }
+  };
+
+  if (redirect || isAuthenticated) {
+    return <Redirect to="/" />;
+  }
+
+  return (
+    <div className="container">
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <div className="form-group">
+          <label htmlFor="email">Email address</label>
+          <input
+            type="email"
+            className="form-control"
+            id="email"
+            name="email"
+            aria-describedby="emailHelp"
+            placeholder="Enter email"
+            ref={register({
+              required: "Email is required",
+              pattern: {
+                value: /^\S+@\S+$/i,
+                message: "Email is not valid",
+              },
+            })}
+          />
+          {errors?.email && errors.email.message}
+        </div>
+        <div className="form-group">
+          <label htmlFor="password">Password</label>
+          <input
+            type="password"
+            className="form-control"
+            id="password"
+            name="password"
+            placeholder="Password"
+            ref={register({ required: "A password is required" })}
+          />
+          {errors?.password && errors.password.message}
+        </div>
+        <button className="btn btn-outline btn-accent m-3 btn-block">
+          Login
+        </button>
+      </form>
+      {apiError && (
+        <div className="alert alert-error shadow-lg">
+          <div>
+            <span>{apiError}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}; 
+export default Login;
+</code>
+</pre>
+<p>需要注意的是，表单中的每个字段都有一个register属性，将其绑定到由React form hook控制的表单。如果我们尝试使用不存在的电子邮件或密码进行登录，则会显示API错误，而如果一切顺利，我们应该会重定向到主页。为了查看auth数据，我们可以在重定向后查看Chrome中的React扩展程序。在组件选项卡中，在ContextProvider下，您应该能够看到存储在auth对象中的所有数据。</p>
+<p>没有适当的导航将难以继续开发，因此让我们访问DaisyUI网站，并找到合适的导航栏。在四处搜索后，我找到了以下解决方案，需要对React Router的链接结构进行一些复制和调整：</p>
+<pre>
+<code>import React from "react";
+import { Link } from "react-router-dom";
+import useAuth from "../hooks/useAuth";
+
+const Navbar = () => {
+  const { logout, isAuthenticated } = useAuth();
+
+  return (
+    <header className="bg-primary">
+      <nav className="navbar navbar-expand-lg navbar-light">
+        <div className="container-fluid">
+          <Link className="navbar-brand text-white" to="/">
+            MyApp
+          </Link>
+          <button
+            className="navbar-toggler"
+            type="button"
+            data-toggle="collapse"
+            data-target="#navbarNav"
+            aria-controls="navbarNav"
+            aria-expanded="false"
+            aria-label="Toggle navigation"
+          >
+            <span className="navbar-toggler-icon"></span>
+          </button>
+          <div className="collapse navbar-collapse" id="navbarNav">
+            <ul className="navbar-nav">
+              <li className="nav-item active">
+                <Link className="nav-link text-white" to="/">
+                  Home
+                </Link>
+              </li>
+              {isAuthenticated && (
+                <li className="nav-item">
+                  <Link className="nav-link text-white" to="/profile">
+                    Profile
+                  </Link>
+                </li>
+              )}
+            </ul>
+            <div className="ml-auto">
+              {isAuthenticated ? (
+                <button
+                  className="btn btn-outline-light ml-3"
+                  onClick={() => logout()}
+                >
+                  Logout
+                </button>
+              ) : (
+                <Link to="/login" className="btn btn-outline-light">
+                  Login
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+  );
+};
+
+export default Navbar;</code>
+</pre></p><p>
+  <div class="navbar bg-primary text-primary-content">
+    <div class="flex-1">
+      <a class="btn btn-ghost normal-case text-xl" 
+         href="/">FARM Cars </a>
+      <span class="border-2 border-amber-500 p-1">
+        {auth?.username ? `已登录 ${auth?.username} - ${auth.role}` : "未登录"}
+      </span>
+    </div>
+    <div class="flex-none">
+      <ul class="menu menu-horizontal p-0">
+        {!auth?.username && (
+          <li class="mx-1">
+            <a href="/login">登录</a>
+          </li>
+        )}
+        {!auth?.username && (
+          <li class="mx-1">
+            <a href="/register">注册</a>
+          </li>
+        )}
+        {auth?.username && (
+          <li class="mx-1">
+            <button class=" btn-warning">
+              登出 <span class="font-semibold">{auth?.username}</span>
+            </button>
+          </li>
+        )}
+      </ul>
+    </div>
+  </div>
+</p><p>Authenticating the users in React
+这是一个常规的导航菜单，具有一些上下文的优点：我们导入useAuth Hook并立即获得对authContext的访问。这使我们能够有条件地显示或隐藏登录和注册或注销链接。我在导航栏内添加了一个小span，以通知用户是否有人登录或未登录。由于默认主题相当单调，我将应用DaisyUI主题-您可以在https://daisyui.com/docs/themes/上探索它们。我喜欢秋季主题，因此我只需找到index.html文件并在html打开标记中添加data-theme =“autumn”即可。
+我们的Logout按钮并没有什么有用的东西，所以让我们在同一个Header中添加注销处理程序。
+jsx文件：
+    let navigate = useNavigate();
+    const logout =（）=> {
+        setAuth({})
+        navigate（“/ login”，{replace：true} ）   
+    }
+只需将onClick处理程序添加到Logout按钮并将其设置为{logout}即可。
+我们已经创建了一个非常简单的身份验证系统，但我们没有要保护的路由，特别是涉及汽车的路由：更新，添加和删除。这是身份验证系统的最后部分，我想在这里展示。有许多方法可以在React中有条件地防止某些组件显示或显示。一种优雅的方法是再次使用React路由-使用outlets。
+简单地说，我们将创建一个身份验证组件，该组件仅会检查auth数据的存在-如果数据存在，则会向您提供插座，封闭的受保护路由和相应的组件，如果没有，则路由将您发送到登录页（或您想要的任何页面）。让我们创建一个名为RequiredAuthentication.jsx的组件：
+import { useLocation，Navigate，Outlet } from“react-router- dom”;
+import useAuth from“../ hooks / useAuth”;
+const RequireAuthentication =（）=> {
+  const { auth } = useAuth（）;
+  const location = useLocation;</p><p><h3>身份验证和授权</h3>
+<p>要创建身份验证和授权系统，我们可以使用React Context API和自定义Hooks。我们可以使用FastAPI来提供后端支持。为了实现身份验证和授权，我们将创建一个高级组件（HOC），名为RequireAuthentication。</p>
+<p>引入React和一些组件，使用useContext Hook从上下文中获取授权信息，然后创建RequireAuthentication组件：</p>
+<pre><code>{`import { useContext } from "react"
+import { Navigate, Outlet } from "react-router-dom"
+import AuthContext from "../context/AuthContext"
+
+const RequireAuthentication = () => {
+  const { auth } = useContext(AuthContext)
+
+  return auth?.username ? <Outlet /> : <Navigate to="/login" />;
+};
+
+export default RequireAuthentication;`}</code></pre>
+<p>该组件起到一个简单的开关作用：如果授权对象中有用户名，那么outlet接管并允许客户端进入任何封闭的路由。否则，它将强制导航到/login路由。这与某些其他方法并没有太大的不同，这些方法使用简单的功能组件，然后条件性地呈现保留输出或登录路由。</p>
+<p>为了能够在实践中看到我们的身份验证逻辑，我们需要至少一个受保护的路由。让我们创建一个新组件并称之为CarList.jsx。它将简单地显示数据库中所有的汽车，但是为了能够访问，用户必须登录 - 作为管理员或销售员。</p>
+<p>CarList组件有一些标准的导入和Hooks：</p>
+<pre><code>{`import { useEffect, useState } from "react"
+import useAuth from "../hooks/useAuth"
+import Card from "./Card"
+
+const CarList = () => {
+  const { auth } = useAuth()
+  const [cars, setCars] = useState([]);
+
+  // ...
+
+};`}</code></pre>
+<p>这里的Card组件并不重要 - 它只是由DaisyUI提供的一个卡片元素，类似于我们在第六章中用于显示汽车信息的元素。useAuth Hook通过上下文为我们提供了一种快速检查经过身份验证的用户信息的方法。useEffect Hook用于调用FastAPI服务器并填充汽车数组：</p>
+<pre><code>{`useEffect(() => {
+    fetch("http://127.0.0.1:8000/cars/", {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: \`Bearer $\{auth.token\}\`,
+      },
+    })
+      .then((response) => response.json())
+      .then((json) => {
+        setCars(json);
+      })
+  }, [auth.token]);`}</code></pre></p><p><div>
+  <h2 class="text-xl text-primary text-center font-bold my-5">
+    汽车页面
+  </h2>
+  <div class="mx-8 grid grid-cols-1 md:grid-cols-2 gap-5 p-4">
+    {cars &&
+      cars.map((el) => {
+        return <Card key={el._id} car={el} />;
+      })}
+  </div>
+</div>
+
+为了将此组件连接到应用程序，我们需要更新App.js文件的路由：
+
+<Routes>
+  <Route path="/" element={<Layout />}>
+    <Route path="/" element={<HomePage />} />
+    <Route path="login" element={<Login/>} />
+    <Route path="register" element={<Register/>} />
+    <Route element={<RequireAuthentication />}>
+      <Route path="cars" element={<CarList/>} />
+    </Route>      
+  </Route>
+</Routes></p><p><h2>身份验证和授权</h2>
+<p>注意我们如何将CarList组件包装在RequireAuthentication路由中：我们可以以相同方式添加需要身份验证的其他路由，并且可以对哪个用户可以访问哪个路由执行更精细的控制。很容易编辑RequireAuthentication组件并对已验证用户的类型执行其他检查 – 因此我们可以为管理员、普通销售人员等添加专门区域。</p>
+<p>最后，让我们也更新Header.jsx组件，以显示链接到新创建的/cars路由：</p>
+<pre><code>{`          {!auth?.username && (
+            <li className="mx-1">
+              <Link to="/register">Register</Link>
+            </li>
+          )}
+          <li className="mx-1">
+            <Link to="/cars">Cars</Link>
+          </li>`}
+</code></pre>
+<p>我将链接保留为所有访问者（已登录或未登录）可见，以展示身份验证路由的功能；如果您在未登录的情况下单击该链接，则将被发送到登录页面，否则，您应该看到一个漂亮的显示汽车的卡片。</p>
+<p>实际上，没有必要展示需要身份验证的余下CRUD操作 – 我们已经看到了后端如何通过读取JWT令牌来检查适当的用户，因此只需确保令牌存在且有效即可。</p>
+<p>正如我前面强调的，身份验证和授权可能是任何应用程序中最基本和严重的主题，它们在开发人员和利益相关者面前提出一系列挑战和问题，需要及早解决。虽然外部解决方案（例如Auth0、AWS Cognito、Firebase、Okta等）提供了强大和工业级别的安全和功能，但您的项目可能需要自定义解决方案，其中数据所有权完全受控制。</p>
+<p>在这些情况下，重要的是您仔细权衡您的选择，谁知道 – 或许您最终必须编写自己的身份验证。毕竟，并非所有应用程序都是用于银行业务的！</p>
+<h3>总结</h3>
+<p>在本章中，我们看到了一个非常基本但相当典型的身份验证机制实现。我们看到了FastAPI如何使我们能够使用符合标准的身份验证方法，并实现了最简单但非常有效的解决方案。</p></p><p><div>
+  <p>摘要：</p>
+  <p>本章节介绍了 FastAPI 和 MongoDB 在定义详细的角色和权限方面的优雅和灵活性，同时借助 Pydantic 充当中间人的作用。本章重点介绍了只用 JWT Token 作为通信手段的情况，因为它是现今单页面应用程序中最主要和流行的工具之一，它可以在服务或微服务之间提供极佳的连通性。</p>
+  <p>最后，我们创建了一个简单的 React 应用程序，并实现了存储用户数据的登录机制。我故意选择不展示任何有意义的持续化 JWT Token 的解决方案，因为重点是观察 React 应用程序在已认证和未认证用户上表现的不同。使用本地存储和 cookie 都有各自的优势和漏洞（本地存储的漏洞更加严重），但是对于安全要求较轻的应用程序来说，它们都可能是可行的解决方案。</p>
+  <p>重申一遍，FARM 栈可以是一个非常好的原型工具，因此学会如何创建身份验证流程是很重要的，即使这并不是最理想或绝对可靠的。这也可能足以让您克服 MVP 阶段的困难，为构建下一个伟大的数据驱动型产品作铺垫。</p>
+  <p>在下一章节中，我们将了解如何将基于 MongoDB 和 FastAPI 的后端与强大的 React 框架 – Next.js 集成，并涵盖一些标准的 Web 开发任务，例如图片和文件上传、使用 httpOnly cookie 进行身份验证、简单的数据可视化、发送电子邮件，以及利用该技术栈的灵活性。</p>
+</div></p>
+</body>
+</html>

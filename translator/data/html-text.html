@@ -1,0 +1,31 @@
+<html>
+  <body>
+    <p>身份验证和授权</p>
+    <p>我们正在实例化FastAPI最简单的身份验证方式-HTTPBearer，并使用bcrypt算法创建一个密码上下文。我们还需要一个密钥字符串，可以自动生成以增加安全性。接下来，我们将处理密码的哈希：</p>
+    <pre><code>def get_password_hash(self, password):
+        return self.pwd_context.hash(password)
+    def verify_password(self, plain_password, hashed_password):
+    return self.pwd_context.verify(plain_password, hashed_password)
+    </code></pre>
+    
+    <p>这些非常简单的函数确保用户的密码被哈希，并且可以通过将其与明文版本进行比较来进行验证。第二个函数返回一个简单的true或false值。现在我们来到了类的核心部分-创建JWT：</p>
+    <pre><code>def encode_token(self, user_id):
+        payload = {
+            'exp': datetime.utcnow() + timedelta(days=0, minutes=35),
+            'iat': datetime.utcnow(),
+            'sub': user_id
+        }
+        return jwt.encode(
+            payload,
+            self.secret,
+            algorithm='HS256'
+        )
+    </code></pre>
+    <p>上述函数完成了大部分工作-它以user_id作为唯一参数，并将其放入负载的sub部分。请记住，我们可以在JWT中编码更多的信息-例如用户的角色或用户名。在这种情况下，sub部分将具有字典的结构，并且JWT将变得更长。到期时间设置为35分钟，发出时间设置为JWT创建的时刻。最后，该函数使用jwt.encode方法对令牌进行编码。我们提供算法（HS256）和一个密钥作为参数。</p>
+    <p>类的解码部分非常类似；我们只需反向进行处理，并在需要时提供异常：</p>
+    <pre><code>def decode_token(self, token):
+        try:
+            payload = jwt.decode(token, self.secret,
+    </code></pre>
+  </body>
+</html>

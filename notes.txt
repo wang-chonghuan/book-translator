@@ -38,6 +38,9 @@ pip install python-decouple
 /frontend/.env.production
 /frontend/.env.development
 /backend/.env
+
+pip install email-validator
+pip install pyjwt passlib['bcrypt']
 -----------------------------------------------------------------------------------------
 heroku部署
 -----------------------------------------------------------------------------------------
@@ -200,6 +203,62 @@ data = collection.find().skip(skip).limit(RESULTS_PER_PAGE)
 
 =======================================
 
+这三段代码是Python使用FastAPI框架创建的Web应用程序的一部分。FastAPI是一种现代，快速（高性能），基于Web的Python框架，用于构建API。
+
+第一段代码定义了三个Pydantic模型，Role Enum，UserBase，LoginBase和CurrentUser。Pydantic模型是FastAPI的核心部分，用于数据校验和序列化。
+
+Role Enum包含两个角色，SALESMAN和ADMIN。
+
+UserBase是用于用户创建的基础模型，它具有用户名，电子邮件，密码和角色字段。其中电子邮件字段有一个验证器来检查电子邮件的有效性。
+
+LoginBase和CurrentUser用于处理登录操作，其中CurrentUser模型还包含角色字段。
+
+第二段代码定义了一个名为AuthHandler的类，该类负责密码哈希和验证，以及JWT（JSON Web Token）的编码和解码。JWT用于处理用户认证和授权。
+
+AuthHandler类还有一个auth_wrapper方法，该方法接收一个HTTPAuthorizationCredentials对象，并尝试从中解码出JWT。
+
+第三段代码是关于FastAPI路由的。FastAPI使用依赖注入系统Depends来管理资源，这在这段代码中用到。
+
+"/me"路由的Depends参数用于提取和验证JWT，它调用auth_handler的auth_wrapper方法，从请求中提取出JWT，并返回相关的用户ID。在成功解码JWT之后，系统将根据ID从数据库中查找相应的用户并返回。
+
+=======================================
+
+FastAPI的启动过程和响应过程如下：
+
+启动：当你运行FastAPI应用时，它将首先通过ASGI服务器（如Uvicorn或Hypercorn）启动。FastAPI应用会加载和解析路由，中间件和依赖项等信息。
+
+请求：当客户端向FastAPI应用发送请求时，ASGI服务器会接收到请求并转发给FastAPI应用。
+
+中间件：FastAPI应用会在中间件中处理请求。中间件是在每个请求被路由函数处理之前和之后运行的函数。它们可以修改请求或响应，也可以在请求被处理之前或之后执行特定的任务。
+
+依赖注入：在路由处理请求之前，FastAPI会运行所有的依赖项。依赖项可以被看作是需要在路由函数被调用之前运行的函数。在这个阶段，可以进行身份验证，数据提取，数据库连接等操作。Depends函数用于声明依赖。
+
+路由函数：请求数据会被解析并验证，然后传递给路由函数。路由函数处理请求并返回响应。
+
+响应：FastAPI应用将路由函数返回的响应发送给ASGI服务器，然后ASGI服务器将响应发送给客户端。
+
+周期结束：一旦响应被发送给客户端，请求的生命周期结束，FastAPI应用就准备好处理下一个请求了。
+
+FastAPI的依赖注入系统能够确保在每个请求中都可以独立地创建和管理资源，比如数据库连接，API客户端等。这样可以保证在处理每个请求时，这些资源都是新的，互不影响。并且，依赖注入系统可以在资源不再需要时自动关闭和清理这些资源，防止资源泄漏。在实际使用中，通常会使用数据库连接池来优化性能。数据库连接池可以在应用启动时创建一定数量的数据库连接，然后在处理请求时从池中获取已有的连接.
+
+=======================================
+
+在FastAPI中，Depends()函数不仅仅用于依赖注入，而且有其他一些重要的用途，包括请求处理流程的控制，参数解析，依赖管理等。
+
+在你提到的例子中，Depends(auth_handler.auth_wrapper)是一个请求处理的依赖项。这意味着在路由函数me()被调用之前，auth_handler.auth_wrapper函数会被执行。
+
+如果你直接在路由函数内部调用auth_handler.auth_wrapper()，它确实会执行，但你将无法利用FastAPI的以下依赖注入的优势：
+
+异常处理：如果auth_handler.auth_wrapper()方法抛出异常（例如，由于JWT无效或过期），FastAPI会自动捕获这些异常，并将它们转换为合适的HTTP响应。如果你在路由函数内部调用此函数，并且它抛出异常，你需要自己捕获并处理这些异常。
+
+参数解析和注入：Depends()函数还负责解析和注入参数。在这个例子中，它从请求中获取HTTPAuthorizationCredentials，并将它作为参数传递给auth_handler.auth_wrapper()函数。
+
+请求处理流程的控制：通过使用Depends()，你可以精细控制请求的处理流程。在这个例子中，你可以确保在处理请求之前先进行认证。
+
+因此，使用Depends()可以帮助你编写更易于理解和维护的代码，同时利用FastAPI的全功能特性。
+
+=======================================
+
 PyObjectId 类的主要功能是在 Pydantic 模型中处理 MongoDB 的 ObjectId 类型。ObjectId 是 MongoDB 的一种数据类型，用于唯一标识文档。它在 MongoDB 中是非常常见的，但在 Python 中却并不常见。因此，Pydantic 并没有为 ObjectId 类型提供内置的支持。
 
 PyObjectId 类对 ObjectId 进行了封装，以便 Pydantic 能够理解和使用它。当你在 Pydantic 模型中使用 PyObjectId 时，Pydantic 将知道如何验证和转换该字段。
@@ -212,6 +271,19 @@ PyObjectId 类对 ObjectId 进行了封装，以便 Pydantic 能够理解和使�
 但是在你的路由处理函数中，id 是作为 URL 参数传入的，它是一个字符串。在这种情况下，Pydantic 模型并不会对其进行处理，因此你需要手动将它转换为 ObjectId。
 
 因此，尽管 PyObjectId 类在处理 Pydantic 模型时很有用，但在路由处理函数中，你仍需要手动将 id 参数转换为 ObjectId。
+
+=======================================
+
+FastAPI在路由函数接收到请求体数据时会根据指定的模型进行校验。在你的例子中，FastAPI会根据CarBase模型对请求体进行校验。
+
+但是，当你将car和owner合并并插入到数据库时，并没有直接对owner字段进行校验，因为并未使用CarDB模型创建新的对象进行校验。这意味着你在插入数据前要对owner字段的有效性有足够的信心，通常由其他函数（如auth_handler.auth_wrapper）提供。
+
+为了明确地进行校验，你可以在插入数据库前创建一个CarDB对象，这样Pydantic（FastAPI的数据校验库）会对所有字段，包括owner，进行校验，确保插入数据库的数据有效。
+
+car = jsonable_encoder(car)
+#car["owner"] = userId
+car_db = CarDB(**car, owner=userId)
+new_car = await request.app.mongodb[cars_collection].insert_one(car_db)
 
 -----------------------------------------------------------------------------------------
 js知识
